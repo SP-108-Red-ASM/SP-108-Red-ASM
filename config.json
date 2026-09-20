@@ -1,0 +1,11 @@
+{
+  "scope": [
+    "127.0.0.1",
+    "google.com"
+  ],
+  "nmap_args": ["-sV", "-p-", "-T4"],
+  "sqlmap_args": ["--level=1", "--risk=1"],
+  "db_path": "sp108.db",
+  "workers": 4,
+  "out_dir": "sqlmap_out"
+}
