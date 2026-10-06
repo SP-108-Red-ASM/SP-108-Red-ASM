@@ -1,11 +1,12 @@
-package main
+package report
 
 import (
+	"SP_108_Red_ASM/internal/model"
 	"database/sql"
 	"fmt"
 )
 
-func report(db *sql.DB, cyc int64, chgs []Change) error {
+func Report(db *sql.DB, cyc int64, chgs []model.Change) error {
 	if len(chgs) == 0 {
 		fmt.Printf("cycle %d: no changes detected\n", cyc)
 	}

@@ -1,13 +1,14 @@
-package main
+package store
 
 import (
+	"SP_108_Red_ASM/internal/model"
 	"database/sql"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
 
-func open(path string) (*sql.DB, error) {
+func Open(path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, err
@@ -38,6 +39,7 @@ func schema(db *sql.DB) error {
 			port INTEGER NOT NULL,
 			proto TEXT NOT NULL,
 			service TEXT NOT NULL,
+			version TEXT,
 			state TEXT NOT NULL,
 			FOREIGN KEY(host_id) REFERENCES host(id)
 		)`,
@@ -74,7 +76,7 @@ func schema(db *sql.DB) error {
 	return nil
 }
 
-func newCycle(db *sql.DB) (int64, error) {
+func NewCycle(db *sql.DB) (int64, error) {
 	res, err := db.Exec(`INSERT INTO scan_cycle (started_at) VALUES (?)`, time.Now().UTC())
 	if err != nil {
 		return 0, err
@@ -84,4 +86,34 @@ func newCycle(db *sql.DB) (int64, error) {
 		return 0, err
 	}
 	return id, nil
+}
+
+func Persist(db *sql.DB, cyc int64, hosts []model.Host) error {
+	for _, h := range hosts {
+		id, err := saveHost(db, cyc, h)
+		if err != nil {
+			return err
+		}
+		for _, p := range h.Ports {
+			err = savePort(db, id, p)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func saveHost(db *sql.DB, cyc int64, h model.Host) (int64, error) {
+	r, err := db.Exec(`INSERT INTO host (cyc_id, ip, state) VALUES (?,?,?)`, cyc, h.IP, h.State)
+	if err != nil {
+		return 0, err
+	}
+	return r.LastInsertId()
+}
+
+func savePort(db *sql.DB, hostID int64, p model.PortSvc) error {
+	_, err := db.Exec(`INSERT INTO port_service (host_id, port, proto, service, version, state) VALUES (?,?,?,?,?,?)`,
+		hostID, p.Port, p.Proto, p.Service, p.Version, p.State)
+	return err
 }

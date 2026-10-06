@@ -1,11 +1,12 @@
-package main
+package diff
 
 import (
+	"SP_108_Red_ASM/internal/model"
 	"database/sql"
 	"fmt"
 )
 
-func diff(db *sql.DB, cyc int64) ([]Change, error) {
+func Diff(db *sql.DB, cyc int64) ([]model.Change, error) {
 	prev, err := prevCycle(db, cyc)
 	if err != nil {
 		return nil, err
@@ -14,7 +15,7 @@ func diff(db *sql.DB, cyc int64) ([]Change, error) {
 		return nil, nil
 	}
 
-	var chgs []Change
+	var chgs []model.Change
 
 	rows, err := db.Query(`
 		SELECT ip FROM host WHERE cyc_id = ? AND ip NOT IN (SELECT ip FROM host WHERE cyc_id = ?)
@@ -29,7 +30,7 @@ func diff(db *sql.DB, cyc int64) ([]Change, error) {
 			rows.Close()
 			return nil, err
 		}
-		chgs = append(chgs, Change{Cyc: cyc, Ent: "host", Key: ip, Typ: "new"})
+		chgs = append(chgs, model.Change{Cyc: cyc, Ent: "host", Key: ip, Typ: "new"})
 	}
 	rows.Close()
 
@@ -46,7 +47,7 @@ func diff(db *sql.DB, cyc int64) ([]Change, error) {
 			rows.Close()
 			return nil, err
 		}
-		chgs = append(chgs, Change{Cyc: cyc, Ent: "host", Key: ip, Typ: "gone"})
+		chgs = append(chgs, model.Change{Cyc: cyc, Ent: "host", Key: ip, Typ: "gone"})
 	}
 	rows.Close()
 
@@ -69,7 +70,7 @@ func diff(db *sql.DB, cyc int64) ([]Change, error) {
 			rows.Close()
 			return nil, err
 		}
-		chgs = append(chgs, Change{Cyc: cyc, Ent: "port", Key: fmt.Sprintf("%s:%d", ip, port), Typ: "new", Det: svc})
+		chgs = append(chgs, model.Change{Cyc: cyc, Ent: "port", Key: fmt.Sprintf("%s:%d", ip, port), Typ: "new", Det: svc})
 	}
 	rows.Close()
 
@@ -94,7 +95,7 @@ func prevCycle(db *sql.DB, cyc int64) (int64, error) {
 	return prev, nil
 }
 
-func saveChange(db *sql.DB, ch Change) error {
+func saveChange(db *sql.DB, ch model.Change) error {
 	_, err := db.Exec(`INSERT INTO chg (cyc_id, ent, key, typ, det) VALUES (?,?,?,?,?)`, ch.Cyc, ch.Ent, ch.Key, ch.Typ, ch.Det)
 	return err
 }

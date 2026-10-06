@@ -1,8 +1,12 @@
-package main
+package discovery
 
 import (
+	"SP_108_Red_ASM/internal/config"
+	"SP_108_Red_ASM/internal/model"
 	"encoding/xml"
+	"fmt"
 	"os/exec"
+	"strings"
 	"sync"
 )
 
@@ -41,16 +45,21 @@ type nmapPState struct {
 }
 
 type nmapSvc struct {
-	Name string `xml:"name,attr"`
+	Name    string `xml:"name,attr"`
+	Product string `xml:"product,attr"`
+	Version string `xml:"version,attr"`
 }
 
-func scan(c Cfg) ([]Host, error) {
+func Scan(c model.Cfg) ([]model.Host, error) {
+	fmt.Printf("[*] starting discovery: %d target(s), %d worker(s)\n\n", len(c.Scope), c.Workers)
+
 	jobs := make(chan string, len(c.Scope))
-	res := make(chan Host, len(c.Scope))
+	res := make(chan model.Host, len(c.Scope))
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 	for i := 0; i < c.Workers; i++ {
 		wg.Add(1)
-		go scanWorker(c, jobs, res, &wg)
+		go scanWorker(c, jobs, res, &wg, &mu)
 	}
 	for _, t := range c.Scope {
 		jobs <- t
@@ -59,47 +68,75 @@ func scan(c Cfg) ([]Host, error) {
 	wg.Wait()
 	close(res)
 
-	var hosts []Host
+	var hosts []model.Host
 	for h := range res {
 		hosts = append(hosts, h)
 	}
 	return hosts, nil
 }
 
-func scanWorker(c Cfg, jobs <-chan string, res chan<- Host, wg *sync.WaitGroup) {
+func scanWorker(c model.Cfg, jobs <-chan string, res chan<- model.Host, wg *sync.WaitGroup, mu *sync.Mutex) {
 	defer wg.Done()
 	for t := range jobs {
-		ok := allowed(t, c.Scope)
+		ok := config.Allowed(t, c.Scope)
 		if !ok {
+			mu.Lock()
+			fmt.Printf("[!] %s skipped: not in scope\n", t)
+			mu.Unlock()
 			continue
 		}
+
+		mu.Lock()
+		fmt.Printf("[*] scanning %s ...\n", t)
+		mu.Unlock()
+
 		// -oX - streams XML to stdout instead of a file
 		args := append([]string{"-oX", "-"}, c.NmapArgs...)
 		args = append(args, t)
 		out, err := exec.Command("nmap", args...).Output()
 		if err != nil {
+			mu.Lock()
+			fmt.Printf("[-] %s error: %v\n", t, err)
+			mu.Unlock()
 			continue
 		}
+
 		var nr nmapRun
 		err = xml.Unmarshal(out, &nr)
 		if err != nil {
+			mu.Lock()
+			fmt.Printf("[-] %s xml parse error: %v\n", t, err)
+			mu.Unlock()
 			continue
 		}
+
+		if len(nr.Hosts) == 0 {
+			mu.Lock()
+			fmt.Printf("[-] %s no response\n", t)
+			mu.Unlock()
+			continue
+		}
+
 		for _, nh := range nr.Hosts {
-			h := Host{State: nh.Status.State}
+			h := model.Host{State: nh.Status.State}
 			for _, a := range nh.Addr {
 				if a.Type == "ipv4" || a.Type == "ipv6" {
 					h.IP = a.Addr
 				}
 			}
 			for _, p := range nh.Ports.Port {
-				h.Ports = append(h.Ports, PortSvc{
+				v := strings.TrimSpace(p.Service.Product + " " + p.Service.Version)
+				h.Ports = append(h.Ports, model.PortSvc{
 					Port:    p.PortID,
 					Proto:   p.Proto,
 					Service: p.Service.Name,
+					Version: v,
 					State:   p.State.State,
 				})
 			}
+			mu.Lock()
+			fmt.Printf("[+] %s up - %d port(s) found\n", h.IP, len(h.Ports))
+			mu.Unlock()
 			res <- h
 		}
 	}
