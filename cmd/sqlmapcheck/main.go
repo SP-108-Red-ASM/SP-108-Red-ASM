@@ -20,7 +20,7 @@ func main() {
 	fmt.Println("Connected to SQLMap API")
 	fmt.Println("Created task:", taskID)
 
-	targetURL := "http://127.0.0.1:8000/vulnerable?id=1"
+	targetURL := "http://127.0.0.1:8000/safe?id=1"
 
 	if err := client.StartLocalTest(taskID, targetURL); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -70,10 +70,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Received %d result records\n", len(results.Data))
+	findings, parseErr := assessment.ParseFindings(targetURL, results)
 
-	for _, item := range results.Data {
-		fmt.Printf("Record type %d: %s\n", item.Type, item.Value)
+	if parseErr != nil {
+		fmt.Fprintln(os.Stderr, "Finding parsing failed:", parseErr)
+	} else {
+		fmt.Printf("SQL injection findings: %d\n", len(findings))
+
+		for _, finding := range findings {
+			fmt.Println()
+			fmt.Println("URL:", finding.URL)
+			fmt.Println("Parameter:", finding.Parameter)
+			fmt.Println("Location:", finding.Location)
+			fmt.Println("Technique:", finding.Technique)
+			fmt.Println("Evidence:", finding.Payload)
+		}
 	}
 
 	if err := client.DeleteTask(taskID); err != nil {
@@ -82,6 +93,10 @@ func main() {
 	}
 
 	fmt.Println("SQLMap task cleaned up")
+
+	if parseErr != nil {
+		os.Exit(1)
+	}
 
 	if len(results.Errors) > 0 {
 		fmt.Fprintln(os.Stderr, "SQLMap reported errors:")
