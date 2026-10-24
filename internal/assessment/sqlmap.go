@@ -185,3 +185,37 @@ func (c *Client) Results(taskID string) (ScanResults, error) {
 
 	return results, nil
 }
+
+func (c *Client) DeleteTask(taskID string) error {
+	if taskID == "" {
+		return fmt.Errorf("task ID is required")
+	}
+
+	resp, err := c.http.Get(c.baseURL + "/task/" + taskID + "/delete")
+	if err != nil {
+		return fmt.Errorf("delete SQLMap task: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf(
+			"SQLMap task deletion returned HTTP %d",
+			resp.StatusCode,
+		)
+	}
+
+	var result struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("decode task deletion response: %w", err)
+	}
+
+	if !result.Success {
+		return fmt.Errorf("SQLMap could not delete task: %s", result.Message)
+	}
+
+	return nil
+}

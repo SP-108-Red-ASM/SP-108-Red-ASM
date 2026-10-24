@@ -76,6 +76,13 @@ func main() {
 		fmt.Printf("Record type %d: %s\n", item.Type, item.Value)
 	}
 
+	if err := client.DeleteTask(taskID); err != nil {
+		fmt.Fprintln(os.Stderr, "Task cleanup failed:", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("SQLMap task cleaned up")
+
 	if len(results.Errors) > 0 {
 		fmt.Fprintln(os.Stderr, "SQLMap reported errors:")
 		for _, item := range results.Errors {
