@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -9,6 +10,16 @@ import (
 )
 
 func main() {
+
+	endpoint := flag.String("endpoint", "safe", "Local test endpoint: safe or vulnerable")
+	flag.Parse()
+
+	if *endpoint != "safe" && *endpoint != "vulnerable" {
+		fmt.Fprintln(os.Stderr, "Endpoint must be safe or vulnerable")
+		os.Exit(1)
+	}
+
+	targetURL := "http://127.0.0.1:8000/" + *endpoint + "?id=1"
 	client := assessment.NewClient("http://127.0.0.1:8775")
 
 	taskID, err := client.NewTask()
@@ -19,8 +30,6 @@ func main() {
 
 	fmt.Println("Connected to SQLMap API")
 	fmt.Println("Created task:", taskID)
-
-	targetURL := "http://127.0.0.1:8000/safe?id=1"
 
 	if err := client.StartLocalTest(taskID, targetURL); err != nil {
 		fmt.Fprintln(os.Stderr, err)

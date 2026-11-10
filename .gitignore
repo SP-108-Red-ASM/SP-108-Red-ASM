@@ -32,3 +32,16 @@ go.work.sum
 # .vscode/
 .xml
 .iml
+# Local build output
+/cli
+/asm
+
+# Generated scan data
+/sp108.db
+/sp108.db-shm
+/sp108.db-wal
+/sqlmap_out/
+
+# Python cache
+__pycache__/
+*.pyc
